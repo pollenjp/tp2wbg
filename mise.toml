@@ -1,0 +1,10 @@
+[tools]
+node = "24.13.1"
+
+[tasks.build]
+dir = "tp2wbg"
+run = "npm run build"
+
+[tasks.debug]
+dir = "tp2wbg"
+run = "npm run dev"

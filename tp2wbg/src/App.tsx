@@ -3,44 +3,74 @@ import './App.css'
 
 type CopyStatus = 'idle' | 'success' | 'error'
 
+const PRESET_COLORS = [
+  '#ffffff',
+  '#000000',
+  '#f5f5f5',
+  '#cccccc',
+  '#ef4444',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#06b6d4',
+  '#2563eb',
+  '#8b5cf6',
+  '#ec4899',
+]
+
 function App() {
   const [originalSrc, setOriginalSrc] = useState<string | null>(null)
   const [convertedDataUrl, setConvertedDataUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
+  const [bgColor, setBgColor] = useState<string>('#ffffff')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const imageRef = useRef<HTMLImageElement | null>(null)
 
-  const processImageFile = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) return
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const src = e.target!.result as string
-      setOriginalSrc(src)
-
-      const img = new Image()
-      img.onload = () => {
-        const canvas = canvasRef.current!
-        canvas.width = img.width
-        canvas.height = img.height
-        const ctx = canvas.getContext('2d')!
-        // Draw white background first, then overlay the image
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, img.width, img.height)
-        ctx.drawImage(img, 0, 0)
-        setConvertedDataUrl(canvas.toDataURL('image/png'))
-      }
-      img.src = src
-    }
-    reader.readAsDataURL(file)
+  const renderWithColor = useCallback((img: HTMLImageElement, color: string) => {
+    const canvas = canvasRef.current!
+    canvas.width = img.width
+    canvas.height = img.height
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = color
+    ctx.fillRect(0, 0, img.width, img.height)
+    ctx.drawImage(img, 0, 0)
+    setConvertedDataUrl(canvas.toDataURL('image/png'))
   }, [])
+
+  const processImageFile = useCallback(
+    (file: File) => {
+      if (!file.type.startsWith('image/')) return
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const src = e.target!.result as string
+        setOriginalSrc(src)
+
+        const img = new Image()
+        img.onload = () => {
+          imageRef.current = img
+          renderWithColor(img, bgColor)
+        }
+        img.src = src
+      }
+      reader.readAsDataURL(file)
+    },
+    [bgColor, renderWithColor],
+  )
+
+  // Re-render when color changes
+  useEffect(() => {
+    if (imageRef.current) {
+      renderWithColor(imageRef.current, bgColor)
+    }
+  }, [bgColor, renderWithColor])
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
       if (file) processImageFile(file)
-      // Reset input value so the same file can be re-selected
       e.target.value = ''
     },
     [processImageFile],
@@ -66,7 +96,6 @@ function App() {
     [processImageFile],
   )
 
-  // Clipboard paste (Ctrl+V anywhere on the page)
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items
@@ -120,7 +149,7 @@ function App() {
 
   return (
     <div className="app">
-      <h1>透過→白背景変換</h1>
+      <h1>透過→背景色変換</h1>
       <p className="guide">ファイルを選択 / ドラッグ&amp;ドロップ / Ctrl+V で貼り付け</p>
 
       <div
@@ -140,6 +169,32 @@ function App() {
         <span>ここをクリック / ドラッグ&amp;ドロップ / Ctrl+V</span>
       </div>
 
+      <div className="color-picker">
+        <span className="color-picker-label">背景色:</span>
+        <div className="color-swatches">
+          {PRESET_COLORS.map((color) => (
+            <button
+              key={color}
+              type="button"
+              className={`color-swatch${bgColor.toLowerCase() === color.toLowerCase() ? ' selected' : ''}`}
+              style={{ backgroundColor: color }}
+              aria-label={`背景色 ${color}`}
+              title={color}
+              onClick={() => setBgColor(color)}
+            />
+          ))}
+        </div>
+        <label className="color-custom">
+          <span>カスタム</span>
+          <input
+            type="color"
+            value={bgColor}
+            onChange={(e) => setBgColor(e.target.value)}
+          />
+        </label>
+        <span className="color-value">{bgColor.toUpperCase()}</span>
+      </div>
+
       {originalSrc && convertedDataUrl && (
         <>
           <div className="preview-container">
@@ -150,7 +205,7 @@ function App() {
               </div>
             </div>
             <div className="preview-panel">
-              <h2>変換後（白背景）</h2>
+              <h2>変換後（背景色: {bgColor.toUpperCase()}）</h2>
               <div className="img-wrapper">
                 <img src={convertedDataUrl} alt="変換後" />
               </div>
@@ -166,7 +221,6 @@ function App() {
         </>
       )}
 
-      {/* Hidden canvas for image processing */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
     </div>
   )
